@@ -15,9 +15,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GameController = void 0;
 const common_1 = require("@nestjs/common");
 const game_service_1 = require("./game.service");
-const game_dto_1 = require("./dto/game.dto");
-const game_dto_2 = require("./dto/game.dto");
-const game_dto_3 = require("./dto/game.dto");
+const player_dto_1 = require("./dto/player.dto");
+const player_dto_2 = require("./dto/player.dto");
+const room_dto_1 = require("./dto/room.dto");
 let GameController = class GameController {
     gameService;
     constructor(gameService) {
@@ -81,21 +81,21 @@ __decorate([
     (0, common_1.Post)('players'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [game_dto_1.CreatePlayerDto]),
+    __metadata("design:paramtypes", [player_dto_1.CreatePlayerDto]),
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "createPlayer", null);
 __decorate([
     (0, common_1.Post)('join-room'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [game_dto_2.JoinRoomDto]),
+    __metadata("design:paramtypes", [room_dto_1.JoinRoomDto]),
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "joinRoom", null);
 __decorate([
     (0, common_1.Post)('move'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [game_dto_3.MovePlayerDto]),
+    __metadata("design:paramtypes", [player_dto_2.MovePlayerDto]),
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "movePlayer", null);
 exports.GameController = GameController = __decorate([

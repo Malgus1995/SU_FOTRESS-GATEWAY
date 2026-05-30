@@ -11,11 +11,24 @@ const common_1 = require("@nestjs/common");
 let GameService = class GameService {
     players = new Map();
     addPlayer(id) {
+        const existingPlayers = Array.from(this.players.values());
+        let x = 0;
+        while (true) {
+            x =
+                Math.floor(Math.random() * 700) + 50;
+            const tooClose = existingPlayers.some((player) => Math.abs(player.x - x) < 100);
+            if (!tooClose) {
+                break;
+            }
+        }
         this.players.set(id, {
             id,
             roomId: null,
-            x: 0,
-            y: 0,
+            nickname: id,
+            characterId: 'tank01',
+            hp: 100,
+            x,
+            y: 540,
         });
     }
     removePlayer(id) {

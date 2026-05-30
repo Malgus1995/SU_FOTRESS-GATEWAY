@@ -1,9 +1,4 @@
-export interface Player {
-    id: string;
-    roomId: string | null;
-    x: number;
-    y: number;
-}
+import { Player } from './entities/player.entity';
 export declare class GameService {
     private players;
     addPlayer(id: string): void;

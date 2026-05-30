@@ -7,6 +7,7 @@ export declare class GameGateway implements OnGatewayConnection, OnGatewayDiscon
     server: Server;
     handleConnection(client: Socket): void;
     handleDisconnect(client: Socket): void;
+    handleSync(client: Socket): void;
     handleJoinRoom(data: {
         roomId: string;
     }, client: Socket): void;
