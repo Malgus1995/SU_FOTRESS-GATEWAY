@@ -9,7 +9,10 @@ export class Room {
 
   status:
     | 'waiting'
-    | 'playing';
+    | 'playing'
+    | 'finished';
 
   players: string[];
+
+  readyPlayers: string[];
 }

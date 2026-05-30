@@ -49,6 +49,16 @@ let GameController = class GameController {
             player,
         };
     }
+    getRoom(id) {
+        return this.gameService.getRoom(id);
+    }
+    getRooms() {
+        return this.gameService.getRooms();
+    }
+    createRoom(body) {
+        console.log(body);
+        return this.gameService.createRoom(body.roomName, body.hostId, body.maxPlayers);
+    }
     movePlayer(body) {
         const player = this.gameService.movePlayer(body.id, body.x, body.y);
         return {
@@ -91,6 +101,26 @@ __decorate([
     __metadata("design:paramtypes", [room_dto_1.JoinRoomDto]),
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "joinRoom", null);
+__decorate([
+    (0, common_1.Get)('rooms/:id'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "getRoom", null);
+__decorate([
+    (0, common_1.Get)('rooms'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "getRooms", null);
+__decorate([
+    (0, common_1.Post)('rooms'),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [room_dto_1.CreateRoomDto]),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "createRoom", null);
 __decorate([
     (0, common_1.Post)('move'),
     __param(0, (0, common_1.Body)()),

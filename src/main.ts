@@ -9,25 +9,42 @@ import {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const config = new DocumentBuilder()
-    .setTitle('Fortress Gateway API')
-    .setDescription('Realtime Fortress Gateway Server')
-    .setVersion('1.0')
-    .build();
+  app.enableCors({
+    origin: [
+      'http://localhost:5173',
+    ],
+    credentials: true,
+  });
 
-  const document = SwaggerModule.createDocument(
+  const config =
+    new DocumentBuilder()
+      .setTitle(
+        'Fortress Gateway API',
+      )
+      .setDescription(
+        'Realtime Fortress Gateway Server',
+      )
+      .setVersion('1.0')
+      .build();
+
+  const document =
+    SwaggerModule.createDocument(
+      app,
+      config,
+    );
+
+  SwaggerModule.setup(
+    'swagger',
     app,
-    config,
+    document,
   );
-
-  SwaggerModule.setup('swagger', app, document);
 
   await app.listen(3000);
 
-  console.log(
-    `Swagger:
-     http://localhost:3000/swagger`,
-  );
+  console.log(`
+Swagger:
+http://localhost:3000/swagger
+`);
 }
 
 bootstrap();

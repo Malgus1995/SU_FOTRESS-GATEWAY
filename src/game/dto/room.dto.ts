@@ -26,4 +26,10 @@ export class CreateRoomDto {
     description: 'Maximum Players',
   })
   maxPlayers: number;
+
+  @ApiProperty({
+    example: 'player1',
+    description: 'Host Player ID',
+  })
+  hostId: string;
 }

@@ -10,6 +10,29 @@ exports.GameService = void 0;
 const common_1 = require("@nestjs/common");
 let GameService = class GameService {
     players = new Map();
+    rooms = new Map();
+    createRoom(roomName, hostId, maxPlayers) {
+        const room = {
+            id: crypto.randomUUID(),
+            roomName,
+            hostId,
+            maxPlayers,
+            status: 'waiting',
+            players: [hostId],
+            readyPlayers: [],
+        };
+        this.rooms.set(room.id, room);
+        return room;
+    }
+    getRooms() {
+        return Array.from(this.rooms.values());
+    }
+    getRoom(id) {
+        return this.rooms.get(id);
+    }
+    deleteRoom(id) {
+        return this.rooms.delete(id);
+    }
     addPlayer(id) {
         const existingPlayers = Array.from(this.players.values());
         let x = 0;
@@ -40,11 +63,43 @@ let GameService = class GameService {
     getPlayers() {
         return Array.from(this.players.values());
     }
-    joinRoom(id, roomId) {
-        const player = this.players.get(id);
-        if (!player)
+    readyPlayer(playerId) {
+        const player = this.players.get(playerId);
+        if (!player ||
+            !player.roomId) {
             return null;
+        }
+        const room = this.rooms.get(player.roomId);
+        if (!room) {
+            return null;
+        }
+        if (!room.readyPlayers.includes(playerId)) {
+            room.readyPlayers.push(playerId);
+        }
+        return room;
+    }
+    isReadyToStart(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room) {
+            return false;
+        }
+        return (room.players.length >= 2 &&
+            room.readyPlayers.length ===
+                room.players.length);
+    }
+    joinRoom(playerId, roomId) {
+        const player = this.players.get(playerId);
+        const room = this.rooms.get(roomId);
+        if (!player) {
+            return null;
+        }
+        if (!room) {
+            return null;
+        }
         player.roomId = roomId;
+        if (!room.players.includes(playerId)) {
+            room.players.push(playerId);
+        }
         return player;
     }
     movePlayer(id, x, y) {

@@ -1,9 +1,48 @@
 import { Injectable } from '@nestjs/common';
 import { Player } from './entities/player.entity';
+import { Room } from './entities/rooms.entity';
 
 @Injectable()
 export class GameService {
   private players = new Map<string, Player>();
+  private rooms = new Map<string, Room>();
+
+  createRoom(
+  roomName: string,
+  hostId: string,
+  maxPlayers: number,
+) {
+const room: Room = {
+  id: crypto.randomUUID(),
+  roomName,
+  hostId,
+  maxPlayers,
+  status: 'waiting',
+  players: [hostId],
+  readyPlayers: [],
+};
+
+  this.rooms.set(
+    room.id,
+    room,
+  );
+
+  return room;
+}
+
+getRooms() {
+  return Array.from(
+    this.rooms.values(),
+  );
+}
+
+getRoom(id: string) {
+  return this.rooms.get(id);
+}
+
+deleteRoom(id: string) {
+  return this.rooms.delete(id);
+}
 
 addPlayer(id: string) {
   const existingPlayers =
@@ -53,15 +92,89 @@ this.players.set(id, {
     return Array.from(this.players.values());
   }
 
-  joinRoom(id: string, roomId: string) {
-    const player = this.players.get(id);
+  readyPlayer(
+  playerId: string,
+) {
+  const player =
+    this.players.get(playerId);
 
-    if (!player) return null;
-
-    player.roomId = roomId;
-
-    return player;
+  if (
+    !player ||
+    !player.roomId
+  ) {
+    return null;
   }
+
+  const room =
+    this.rooms.get(
+      player.roomId,
+    );
+
+  if (!room) {
+    return null;
+  }
+
+  if (
+    !room.readyPlayers.includes(
+      playerId,
+    )
+  ) {
+    room.readyPlayers.push(
+      playerId,
+    );
+  }
+
+  return room;
+}
+
+isReadyToStart(
+  roomId: string,
+) {
+  const room =
+    this.rooms.get(roomId);
+
+  if (!room) {
+    return false;
+  }
+
+  return (
+    room.players.length >= 2 &&
+    room.readyPlayers.length ===
+      room.players.length
+  );
+}
+
+joinRoom(
+  playerId: string,
+  roomId: string,
+) {
+  const player =
+    this.players.get(playerId);
+
+  const room =
+    this.rooms.get(roomId);
+
+  if (!player) {
+    return null;
+  }
+
+  if (!room) {
+    return null;
+  }
+
+  player.roomId = roomId;
+
+  if (
+    !room.players.includes(
+      playerId,
+    )
+  ) {
+    room.players.push(
+      playerId,
+    );
+  }
+  return player;
+}
 
   movePlayer(id: string, x: number, y: number) {
     const player = this.players.get(id);

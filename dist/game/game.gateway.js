@@ -28,9 +28,38 @@ let GameGateway = class GameGateway {
     }
     handleDisconnect(client) {
         this.gameService.removePlayer(client.id);
+        this.server.emit('playerLeft', {
+            id: client.id,
+        });
         console.log(`[DISCONNECTED] ${client.id}`);
     }
+    handleReady(client) {
+        const room = this.gameService.readyPlayer(client.id);
+        if (!room) {
+            return;
+        }
+        this.server
+            .to(room.id)
+            .emit('playerReady', {
+            playerId: client.id,
+        });
+        const canStart = this.gameService.isReadyToStart(room.id);
+        if (canStart) {
+            room.status =
+                'playing';
+            this.server
+                .to(room.id)
+                .emit('gameStart');
+        }
+    }
+    handleSync(client) {
+        console.log(`[SYNC REQUEST] ${client.id}`);
+        client.emit('sync', {
+            players: this.gameService.getPlayers(),
+        });
+    }
     handleJoinRoom(data, client) {
+        console.log('[JOIN ROOM EVENT]', client.id, data.roomId);
         const player = this.gameService.joinRoom(client.id, data.roomId);
         if (!player)
             return;
@@ -40,6 +69,8 @@ let GameGateway = class GameGateway {
        room=${data.roomId}`);
         this.server.to(data.roomId).emit('playerJoined', {
             id: client.id,
+            x: player.x,
+            y: player.y,
         });
     }
     handleMove(data, client) {
@@ -81,6 +112,20 @@ __decorate([
     (0, websockets_1.WebSocketServer)(),
     __metadata("design:type", socket_io_1.Server)
 ], GameGateway.prototype, "server", void 0);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('ready'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], GameGateway.prototype, "handleReady", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('sync'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], GameGateway.prototype, "handleSync", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('joinRoom'),
     __param(0, (0, websockets_1.MessageBody)()),

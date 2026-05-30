@@ -11,7 +11,9 @@ import { GameService } from './game.service';
 
 import { CreatePlayerDto } from './dto/player.dto';
 import { MovePlayerDto } from './dto/player.dto';
-import { JoinRoomDto } from './dto/room.dto';
+import { CreateRoomDto, JoinRoomDto } from './dto/room.dto';
+
+
 
 @Controller('game')
 export class GameController {
@@ -66,8 +68,34 @@ export class GameController {
     };
   }
 
-  @Post('move')
-  movePlayer(
+@Get('rooms/:id')
+getRoom(
+  @Param('id') id: string,
+) {
+  return this.gameService.getRoom(id);
+}
+
+@Get('rooms')
+getRooms() {
+  return this.gameService.getRooms();
+}
+
+@Post('rooms')
+createRoom(
+  @Body()
+  body: CreateRoomDto,
+) {
+  console.log(body);
+
+  return this.gameService.createRoom(
+    body.roomName,
+    body.hostId,
+    body.maxPlayers,
+  );
+}
+
+@Post('move')
+movePlayer(
     @Body() body: MovePlayerDto,
   ) {
     const player = this.gameService.movePlayer(

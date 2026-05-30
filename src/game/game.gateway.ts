@@ -38,6 +38,46 @@ handleDisconnect(client: Socket) {
   console.log(`[DISCONNECTED] ${client.id}`);
 
 }
+@SubscribeMessage('ready')
+handleReady(
+  @ConnectedSocket()
+  client: Socket,
+) {
+  const room =
+    this.gameService.readyPlayer(
+      client.id,
+    );
+
+  if (!room) {
+    return;
+  }
+
+  this.server
+    .to(room.id)
+    .emit(
+      'playerReady',
+      {
+        playerId:
+          client.id,
+      },
+    );
+
+  const canStart =
+    this.gameService.isReadyToStart(
+      room.id,
+    );
+
+  if (canStart) {
+    room.status =
+      'playing';
+
+    this.server
+      .to(room.id)
+      .emit(
+        'gameStart',
+      );
+  }
+}
 
 @SubscribeMessage('sync')
 handleSync(
@@ -57,6 +97,11 @@ handleSync(
     @MessageBody() data: { roomId: string },
     @ConnectedSocket() client: Socket,
   ) {
+    console.log(
+    '[JOIN ROOM EVENT]',
+    client.id,
+    data.roomId);
+    
     const player = this.gameService.joinRoom(
       client.id,
       data.roomId,
