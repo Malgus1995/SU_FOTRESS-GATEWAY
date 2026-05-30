@@ -9,11 +9,9 @@ import {
 import { GameService } from './game.service';
 
 
-import { CreatePlayerDto } from './dto/game.dto';
-
-import { JoinRoomDto } from './dto/game.dto';
-
-import { MovePlayerDto } from './dto/game.dto';
+import { CreatePlayerDto } from './dto/player.dto';
+import { MovePlayerDto } from './dto/player.dto';
+import { JoinRoomDto } from './dto/room.dto';
 
 @Controller('game')
 export class GameController {

@@ -24,18 +24,33 @@ export class GameGateway
 
   @WebSocketServer()
   server: Server;
+handleConnection(client: Socket) {
+  this.gameService.addPlayer(client.id);
 
-  handleConnection(client: Socket) {
-    this.gameService.addPlayer(client.id);
+  console.log(`[CONNECTED] ${client.id}`);
+}
 
-    console.log(`[CONNECTED] ${client.id}`);
-  }
+handleDisconnect(client: Socket) {
+  this.gameService.removePlayer(client.id);
+  this.server.emit('playerLeft', {
+    id: client.id,
+  });
+  console.log(`[DISCONNECTED] ${client.id}`);
 
-  handleDisconnect(client: Socket) {
-    this.gameService.removePlayer(client.id);
+}
 
-    console.log(`[DISCONNECTED] ${client.id}`);
-  }
+@SubscribeMessage('sync')
+handleSync(
+  @ConnectedSocket() client: Socket,
+) {
+  console.log(
+    `[SYNC REQUEST] ${client.id}`,
+  );
+
+  client.emit('sync', {
+    players: this.gameService.getPlayers(),
+  });
+}
 
   @SubscribeMessage('joinRoom')
   handleJoinRoom(
@@ -57,9 +72,11 @@ export class GameGateway
        room=${data.roomId}`,
     );
 
-    this.server.to(data.roomId).emit('playerJoined', {
-      id: client.id,
-    });
+this.server.to(data.roomId).emit('playerJoined', {
+  id: client.id,
+  x: player.x,
+  y: player.y,
+});
   }
 
   @SubscribeMessage('move')
