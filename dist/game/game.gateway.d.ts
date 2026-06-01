@@ -1,9 +1,11 @@
 import { OnGatewayConnection, OnGatewayDisconnect } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
+import { PhysicsService } from "../physics/physics.service";
 export declare class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
+    private readonly physicsService;
     private readonly gameService;
-    constructor(gameService: GameService);
+    constructor(physicsService: PhysicsService, gameService: GameService);
     server: Server;
     handleConnection(client: Socket): void;
     handleDisconnect(client: Socket): void;
@@ -20,4 +22,5 @@ export declare class GameGateway implements OnGatewayConnection, OnGatewayDiscon
         angle: number;
         power: number;
     }, client: Socket): void;
+    handleTurnEnd(client: Socket): void;
 }

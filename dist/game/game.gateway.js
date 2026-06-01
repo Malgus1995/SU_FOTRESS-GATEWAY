@@ -16,9 +16,12 @@ exports.GameGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
 const game_service_1 = require("./game.service");
+const physics_service_1 = require("../physics/physics.service");
 let GameGateway = class GameGateway {
+    physicsService;
     gameService;
-    constructor(gameService) {
+    constructor(physicsService, gameService) {
+        this.physicsService = physicsService;
         this.gameService = gameService;
     }
     server;
@@ -49,7 +52,9 @@ let GameGateway = class GameGateway {
                 'playing';
             this.server
                 .to(room.id)
-                .emit('gameStart');
+                .emit('gameStart', {
+                currentTurn: room.currentTurn,
+            });
         }
     }
     handleSync(client) {
@@ -91,19 +96,65 @@ let GameGateway = class GameGateway {
     }
     handleAttack(data, client) {
         const player = this.gameService.getPlayer(client.id);
-        if (!player)
+        if (!player?.roomId) {
             return;
-        if (!player.roomId)
+        }
+        const room = this.gameService.getRoom(player.roomId);
+        if (!room) {
             return;
-        console.log(`[ATTACK]
-       player=${client.id}
-       room=${player.roomId}
-       angle=${data.angle}
-       power=${data.power}`);
-        this.server.to(player.roomId).emit('playerAttack', {
-            id: client.id,
+        }
+        const isMyTurn = this.gameService.isMyTurn(room.id, client.id);
+        if (!isMyTurn) {
+            console.log(`[TURN BLOCK] ${client.id}`);
+            return;
+        }
+        const nextSnapshot = this.physicsService.processCommand(room.snapshot, {
+            playerId: client.id,
+            type: 'ATTACK',
             angle: data.angle,
             power: data.power,
+        });
+        room.snapshot =
+            nextSnapshot;
+        console.log(`[ATTACK]
+     player=${client.id}
+     room=${room.id}`);
+        this.server
+            .to(room.id)
+            .emit('snapshot', nextSnapshot);
+        if (nextSnapshot.winner) {
+            room.status =
+                'finished';
+            this.server
+                .to(room.id)
+                .emit('gameFinished', {
+                winner: nextSnapshot.winner,
+            });
+            return;
+        }
+        const nextPlayer = this.gameService.nextTurn(room.id);
+        nextSnapshot.currentTurn =
+            nextPlayer;
+        this.server
+            .to(room.id)
+            .emit('turnChanged', {
+            playerId: nextPlayer,
+        });
+    }
+    handleTurnEnd(client) {
+        const player = this.gameService.getPlayer(client.id);
+        if (!player ||
+            !player.roomId) {
+            return;
+        }
+        const nextPlayer = this.gameService.nextTurn(player.roomId);
+        console.log(`[TURN END]
+     current=${client.id}
+     next=${nextPlayer}`);
+        this.server
+            .to(player.roomId)
+            .emit('turnChanged', {
+            playerId: nextPlayer,
         });
     }
 };
@@ -150,12 +201,20 @@ __decorate([
     __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
     __metadata("design:returntype", void 0)
 ], GameGateway.prototype, "handleAttack", null);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('turnEnd'),
+    __param(0, (0, websockets_1.ConnectedSocket)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], GameGateway.prototype, "handleTurnEnd", null);
 exports.GameGateway = GameGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
         cors: {
             origin: '*',
         },
     }),
-    __metadata("design:paramtypes", [game_service_1.GameService])
+    __metadata("design:paramtypes", [physics_service_1.PhysicsService,
+        game_service_1.GameService])
 ], GameGateway);
 //# sourceMappingURL=game.gateway.js.map

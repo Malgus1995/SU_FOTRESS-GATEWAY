@@ -11,6 +11,7 @@ const common_1 = require("@nestjs/common");
 const game_gateway_1 = require("./game.gateway");
 const game_controller_1 = require("./game.controller");
 const game_service_1 = require("./game.service");
+const physics_module_1 = require("../physics/physics.module");
 let GameModule = class GameModule {
 };
 exports.GameModule = GameModule;
@@ -18,6 +19,9 @@ exports.GameModule = GameModule = __decorate([
     (0, common_1.Module)({
         controllers: [game_controller_1.GameController],
         providers: [game_gateway_1.GameGateway, game_service_1.GameService],
+        imports: [
+            physics_module_1.PhysicsModule,
+        ],
     })
 ], GameModule);
 //# sourceMappingURL=game.module.js.map

@@ -13,6 +13,8 @@ export declare class GameService {
     getPlayers(): Player[];
     readyPlayer(playerId: string): Room | null;
     isReadyToStart(roomId: string): boolean;
+    nextTurn(roomId: string): string;
+    isMyTurn(roomId: string, playerId: string): boolean;
     joinRoom(playerId: string, roomId: string): Player | null;
     movePlayer(id: string, x: number, y: number): Player | null;
 }

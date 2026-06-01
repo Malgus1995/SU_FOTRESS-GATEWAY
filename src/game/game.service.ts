@@ -20,6 +20,16 @@ const room: Room = {
   status: 'waiting',
   players: [hostId],
   readyPlayers: [],
+  currentTurn: hostId,
+
+  turnIndex: 0,
+  snapshot: {
+    roomId: '',
+    currentTurn: hostId,
+    winner: null,
+    players: [],
+  },
+
 };
 
   this.rooms.set(
@@ -141,6 +151,48 @@ isReadyToStart(
     room.players.length >= 2 &&
     room.readyPlayers.length ===
       room.players.length
+  );
+}
+
+nextTurn(
+  roomId: string,
+): string {
+  const room =
+    this.rooms.get(roomId);
+  if (!room) {
+    throw new Error(
+      `Room not found: ${roomId}`,
+    );
+  }
+  room.turnIndex++;
+  if (
+    room.turnIndex >=
+    room.players.length
+  ) {
+    room.turnIndex = 0;
+  }
+
+  room.currentTurn =
+    room.players[
+      room.turnIndex
+    ];
+  return room.currentTurn;
+}
+
+isMyTurn(
+  roomId: string,
+  playerId: string,
+) {
+  const room =
+    this.rooms.get(roomId);
+
+  if (!room) {
+    return false;
+  }
+
+  return (
+    room.currentTurn ===
+    playerId
   );
 }
 

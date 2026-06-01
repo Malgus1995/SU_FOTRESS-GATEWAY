@@ -20,6 +20,14 @@ let GameService = class GameService {
             status: 'waiting',
             players: [hostId],
             readyPlayers: [],
+            currentTurn: hostId,
+            turnIndex: 0,
+            snapshot: {
+                roomId: '',
+                currentTurn: hostId,
+                winner: null,
+                players: [],
+            },
         };
         this.rooms.set(room.id, room);
         return room;
@@ -86,6 +94,28 @@ let GameService = class GameService {
         return (room.players.length >= 2 &&
             room.readyPlayers.length ===
                 room.players.length);
+    }
+    nextTurn(roomId) {
+        const room = this.rooms.get(roomId);
+        if (!room) {
+            throw new Error(`Room not found: ${roomId}`);
+        }
+        room.turnIndex++;
+        if (room.turnIndex >=
+            room.players.length) {
+            room.turnIndex = 0;
+        }
+        room.currentTurn =
+            room.players[room.turnIndex];
+        return room.currentTurn;
+    }
+    isMyTurn(roomId, playerId) {
+        const room = this.rooms.get(roomId);
+        if (!room) {
+            return false;
+        }
+        return (room.currentTurn ===
+            playerId);
     }
     joinRoom(playerId, roomId) {
         const player = this.players.get(playerId);
