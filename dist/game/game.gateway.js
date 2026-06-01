@@ -37,8 +37,10 @@ let GameGateway = class GameGateway {
         console.log(`[DISCONNECTED] ${client.id}`);
     }
     handleReady(client) {
+        console.log('[READY RECEIVED]', client.id);
         const room = this.gameService.readyPlayer(client.id);
         if (!room) {
+            console.log('[READY FAIL]', client.id);
             return;
         }
         this.server
@@ -46,49 +48,84 @@ let GameGateway = class GameGateway {
             .emit('playerReady', {
             playerId: client.id,
         });
+        console.log('[READY COUNT]', room.readyPlayers.length, '/', room.players.length);
         const canStart = this.gameService.isReadyToStart(room.id);
-        if (canStart) {
-            room.status =
-                'playing';
-            this.server
-                .to(room.id)
-                .emit('gameStart', {
-                currentTurn: room.currentTurn,
-            });
+        console.log('[CAN START]', canStart);
+        if (!canStart) {
+            return;
         }
+        room.status =
+            'playing';
+        const randomIndex = Math.floor(Math.random() *
+            room.players.length);
+        room.turnIndex =
+            randomIndex;
+        room.currentTurn =
+            room.players[randomIndex];
+        room.snapshot.currentTurn =
+            room.currentTurn;
+        console.log('[GAME START]', room.id, 'firstTurn=', room.currentTurn);
+        this.server
+            .to(room.id)
+            .emit('gameStart', {
+            currentTurn: room.currentTurn,
+        });
     }
     handleSync(client) {
         console.log(`[SYNC REQUEST] ${client.id}`);
+        const player = this.gameService.getPlayer(client.id);
+        let currentTurn = '';
+        if (player?.roomId) {
+            const room = this.gameService.getRoom(player.roomId);
+            currentTurn =
+                room?.currentTurn ?? '';
+        }
         client.emit('sync', {
             players: this.gameService.getPlayers(),
+            currentTurn,
         });
     }
     handleJoinRoom(data, client) {
         console.log('[JOIN ROOM EVENT]', client.id, data.roomId);
         const player = this.gameService.joinRoom(client.id, data.roomId);
-        if (!player)
+        if (!player) {
+            console.log('[JOIN ROOM FAIL]', client.id);
             return;
+        }
         client.join(data.roomId);
         console.log(`[ROOM JOIN]
        player=${client.id}
        room=${data.roomId}`);
-        this.server.to(data.roomId).emit('playerJoined', {
+        this.server
+            .to(data.roomId)
+            .emit('playerJoined', {
             id: client.id,
             x: player.x,
             y: player.y,
         });
     }
     handleMove(data, client) {
+        const currentPlayer = this.gameService.getPlayer(client.id);
+        if (!currentPlayer ||
+            !currentPlayer.roomId) {
+            return;
+        }
+        const isMyTurn = this.gameService.isMyTurn(currentPlayer.roomId, client.id);
+        if (!isMyTurn) {
+            console.log('[MOVE BLOCK]', client.id);
+            return;
+        }
         const player = this.gameService.movePlayer(client.id, data.x, data.y);
-        if (!player)
+        if (!player) {
             return;
-        if (!player.roomId)
-            return;
+        }
         console.log(`[MOVE]
        player=${client.id}
        x=${player.x}
        y=${player.y}`);
-        this.server.to(player.roomId).emit('playerMoved', {
+        this.server
+            .to(player.roomId)
+            .emit('playerMoved', {
             id: client.id,
             x: player.x,
             y: player.y,
@@ -105,7 +142,7 @@ let GameGateway = class GameGateway {
         }
         const isMyTurn = this.gameService.isMyTurn(room.id, client.id);
         if (!isMyTurn) {
-            console.log(`[TURN BLOCK] ${client.id}`);
+            console.log('[ATTACK BLOCK]', client.id);
             return;
         }
         const nextSnapshot = this.physicsService.processCommand(room.snapshot, {
@@ -117,8 +154,17 @@ let GameGateway = class GameGateway {
         room.snapshot =
             nextSnapshot;
         console.log(`[ATTACK]
-     player=${client.id}
-     room=${room.id}`);
+       player=${client.id}
+       room=${room.id}
+       angle=${data.angle}
+       power=${data.power}`);
+        this.server
+            .to(room.id)
+            .emit('playerAttack', {
+            id: client.id,
+            angle: data.angle,
+            power: data.power,
+        });
         this.server
             .to(room.id)
             .emit('snapshot', nextSnapshot);
@@ -135,6 +181,8 @@ let GameGateway = class GameGateway {
         const nextPlayer = this.gameService.nextTurn(room.id);
         nextSnapshot.currentTurn =
             nextPlayer;
+        room.currentTurn =
+            nextPlayer;
         this.server
             .to(room.id)
             .emit('turnChanged', {
@@ -148,9 +196,14 @@ let GameGateway = class GameGateway {
             return;
         }
         const nextPlayer = this.gameService.nextTurn(player.roomId);
+        const room = this.gameService.getRoom(player.roomId);
+        if (room) {
+            room.snapshot.currentTurn =
+                nextPlayer;
+        }
         console.log(`[TURN END]
-     current=${client.id}
-     next=${nextPlayer}`);
+       current=${client.id}
+       next=${nextPlayer}`);
         this.server
             .to(player.roomId)
             .emit('turnChanged', {
