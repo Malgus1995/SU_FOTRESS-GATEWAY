@@ -12,23 +12,36 @@ let GameService = class GameService {
     players = new Map();
     rooms = new Map();
     createRoom(roomName, hostId, maxPlayers) {
+        const host = this.players.get(hostId);
         const room = {
             id: crypto.randomUUID(),
             roomName,
             hostId,
             maxPlayers,
             status: 'waiting',
-            players: [hostId],
+            players: [
+                hostId,
+            ],
             readyPlayers: [],
-            currentTurn: hostId,
-            turnIndex: 0,
             snapshot: {
-                roomId: '',
+                version: 0,
                 currentTurn: hostId,
                 winner: null,
-                players: [],
+                turnAction: {
+                    moved: false,
+                    attacked: false,
+                },
+                players: host
+                    ? [
+                        this.toSnapshotPlayer(host),
+                    ]
+                    : [],
             },
         };
+        if (host) {
+            host.roomId =
+                room.id;
+        }
         this.rooms.set(room.id, room);
         return room;
     }
@@ -44,15 +57,15 @@ let GameService = class GameService {
     addPlayer(id) {
         const existingPlayers = Array.from(this.players.values());
         let x = 0;
-        while (true) {
+        let attempts = 0;
+        do {
             x =
-                Math.floor(Math.random() * 700) + 50;
-            const tooClose = existingPlayers.some((player) => Math.abs(player.x - x) < 100);
-            if (!tooClose) {
-                break;
-            }
-        }
-        this.players.set(id, {
+                Math.floor(Math.random() *
+                    700) + 50;
+            attempts += 1;
+        } while (existingPlayers.some(player => Math.abs(player.x - x) < 100) &&
+            attempts < 100);
+        const player = {
             id,
             roomId: null,
             nickname: id,
@@ -60,9 +73,28 @@ let GameService = class GameService {
             hp: 100,
             x,
             y: 540,
-        });
+        };
+        this.players.set(id, player);
+        return player;
     }
     removePlayer(id) {
+        const player = this.players.get(id);
+        if (player?.roomId) {
+            const room = this.rooms.get(player.roomId);
+            if (room) {
+                room.players =
+                    room.players.filter(playerId => playerId !== id);
+                room.readyPlayers =
+                    room.readyPlayers.filter(playerId => playerId !== id);
+                room.snapshot.players =
+                    room.snapshot.players.filter(snapshotPlayer => snapshotPlayer.id !==
+                        id);
+                if (room.players.length ===
+                    0) {
+                    this.rooms.delete(room.id);
+                }
+            }
+        }
         this.players.delete(id);
     }
     getPlayer(id) {
@@ -73,8 +105,7 @@ let GameService = class GameService {
     }
     readyPlayer(playerId) {
         const player = this.players.get(playerId);
-        if (!player ||
-            !player.roomId) {
+        if (!player?.roomId) {
             return null;
         }
         const room = this.rooms.get(player.roomId);
@@ -95,50 +126,45 @@ let GameService = class GameService {
             room.readyPlayers.length ===
                 room.players.length);
     }
-    nextTurn(roomId) {
-        const room = this.rooms.get(roomId);
-        if (!room) {
-            throw new Error(`Room not found: ${roomId}`);
-        }
-        room.turnIndex++;
-        if (room.turnIndex >=
-            room.players.length) {
-            room.turnIndex = 0;
-        }
-        room.currentTurn =
-            room.players[room.turnIndex];
-        return room.currentTurn;
-    }
-    isMyTurn(roomId, playerId) {
-        const room = this.rooms.get(roomId);
-        if (!room) {
-            return false;
-        }
-        return (room.currentTurn ===
-            playerId);
-    }
     joinRoom(playerId, roomId) {
         const player = this.players.get(playerId);
         const room = this.rooms.get(roomId);
-        if (!player) {
+        if (!player ||
+            !room) {
             return null;
         }
-        if (!room) {
+        if (room.status !==
+            'waiting') {
             return null;
         }
-        player.roomId = roomId;
+        if (room.players.length >=
+            room.maxPlayers) {
+            return null;
+        }
+        player.roomId =
+            roomId;
         if (!room.players.includes(playerId)) {
             room.players.push(playerId);
         }
+        const exists = room.snapshot.players.some(snapshotPlayer => snapshotPlayer.id ===
+            playerId);
+        if (!exists) {
+            room.snapshot.players.push(this.toSnapshotPlayer(player));
+        }
         return player;
     }
-    movePlayer(id, x, y) {
-        const player = this.players.get(id);
-        if (!player)
-            return null;
-        player.x = x;
-        player.y = y;
-        return player;
+    toSnapshotPlayer(player) {
+        return {
+            id: player.id,
+            x: player.x,
+            y: player.y,
+            hp: player.hp,
+            maxHp: 100,
+            fuel: 100,
+            maxFuel: 100,
+            alive: true,
+            facing: 1,
+        };
     }
 };
 exports.GameService = GameService;

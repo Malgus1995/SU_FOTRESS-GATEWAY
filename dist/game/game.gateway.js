@@ -16,13 +16,13 @@ exports.GameGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
 const game_service_1 = require("./game.service");
-const physics_service_1 = require("../physics/physics.service");
+const command_executor_service_1 = require("./command/command-executor.service");
 let GameGateway = class GameGateway {
-    physicsService;
     gameService;
-    constructor(physicsService, gameService) {
-        this.physicsService = physicsService;
+    commandExecutor;
+    constructor(gameService, commandExecutor) {
         this.gameService = gameService;
+        this.commandExecutor = commandExecutor;
     }
     server;
     handleConnection(client) {
@@ -30,17 +30,42 @@ let GameGateway = class GameGateway {
         console.log(`[CONNECTED] ${client.id}`);
     }
     handleDisconnect(client) {
+        const player = this.gameService.getPlayer(client.id);
+        const roomId = player?.roomId;
         this.gameService.removePlayer(client.id);
-        this.server.emit('playerLeft', {
-            id: client.id,
-        });
+        if (roomId) {
+            this.server
+                .to(roomId)
+                .emit('playerLeft', {
+                id: client.id,
+            });
+        }
         console.log(`[DISCONNECTED] ${client.id}`);
     }
+    handleJoinRoom(data, client) {
+        const player = this.gameService.joinRoom(client.id, data.roomId);
+        if (!player) {
+            client.emit('commandRejected', {
+                reason: 'ROOM_JOIN_FAILED',
+            });
+            return;
+        }
+        void client.join(data.roomId);
+        const room = this.gameService.getRoom(data.roomId);
+        this.server
+            .to(data.roomId)
+            .emit('playerJoined', {
+            id: player.id,
+            x: player.x,
+            y: player.y,
+        });
+        if (room) {
+            this.broadcastSnapshot(room);
+        }
+    }
     handleReady(client) {
-        console.log('[READY RECEIVED]', client.id);
         const room = this.gameService.readyPlayer(client.id);
         if (!room) {
-            console.log('[READY FAIL]', client.id);
             return;
         }
         this.server
@@ -48,9 +73,7 @@ let GameGateway = class GameGateway {
             .emit('playerReady', {
             playerId: client.id,
         });
-        console.log('[READY COUNT]', room.readyPlayers.length, '/', room.players.length);
         const canStart = this.gameService.isReadyToStart(room.id);
-        console.log('[CAN START]', canStart);
         if (!canStart) {
             return;
         }
@@ -58,157 +81,113 @@ let GameGateway = class GameGateway {
             'playing';
         const randomIndex = Math.floor(Math.random() *
             room.players.length);
-        room.turnIndex =
-            randomIndex;
-        room.currentTurn =
-            room.players[randomIndex];
         room.snapshot.currentTurn =
-            room.currentTurn;
-        console.log('[GAME START]', room.id, 'firstTurn=', room.currentTurn);
+            room.players[randomIndex];
+        room.snapshot.turnAction = {
+            moved: false,
+            attacked: false,
+        };
+        room.snapshot.version +=
+            1;
         this.server
             .to(room.id)
             .emit('gameStart', {
-            currentTurn: room.currentTurn,
+            currentTurn: room.snapshot.currentTurn,
         });
+        this.broadcastSnapshot(room);
     }
     handleSync(client) {
-        console.log(`[SYNC REQUEST] ${client.id}`);
-        const player = this.gameService.getPlayer(client.id);
-        let currentTurn = '';
-        if (player?.roomId) {
-            const room = this.gameService.getRoom(player.roomId);
-            currentTurn =
-                room?.currentTurn ?? '';
-        }
-        client.emit('sync', {
-            players: this.gameService.getPlayers(),
-            currentTurn,
-        });
-    }
-    handleJoinRoom(data, client) {
-        console.log('[JOIN ROOM EVENT]', client.id, data.roomId);
-        const player = this.gameService.joinRoom(client.id, data.roomId);
-        if (!player) {
-            console.log('[JOIN ROOM FAIL]', client.id);
-            return;
-        }
-        client.join(data.roomId);
-        console.log(`[ROOM JOIN]
-       player=${client.id}
-       room=${data.roomId}`);
-        this.server
-            .to(data.roomId)
-            .emit('playerJoined', {
-            id: client.id,
-            x: player.x,
-            y: player.y,
-        });
-    }
-    handleMove(data, client) {
-        const currentPlayer = this.gameService.getPlayer(client.id);
-        if (!currentPlayer ||
-            !currentPlayer.roomId) {
-            return;
-        }
-        const isMyTurn = this.gameService.isMyTurn(currentPlayer.roomId, client.id);
-        if (!isMyTurn) {
-            console.log('[MOVE BLOCK]', client.id);
-            return;
-        }
-        const player = this.gameService.movePlayer(client.id, data.x, data.y);
-        if (!player) {
-            return;
-        }
-        console.log(`[MOVE]
-       player=${client.id}
-       x=${player.x}
-       y=${player.y}`);
-        this.server
-            .to(player.roomId)
-            .emit('playerMoved', {
-            id: client.id,
-            x: player.x,
-            y: player.y,
-        });
-    }
-    handleAttack(data, client) {
-        const player = this.gameService.getPlayer(client.id);
-        if (!player?.roomId) {
-            return;
-        }
-        const room = this.gameService.getRoom(player.roomId);
-        if (!room) {
-            return;
-        }
-        const isMyTurn = this.gameService.isMyTurn(room.id, client.id);
-        if (!isMyTurn) {
-            console.log('[ATTACK BLOCK]', client.id);
-            return;
-        }
-        const nextSnapshot = this.physicsService.processCommand(room.snapshot, {
-            playerId: client.id,
-            type: 'ATTACK',
-            angle: data.angle,
-            power: data.power,
-        });
-        room.snapshot =
-            nextSnapshot;
-        console.log(`[ATTACK]
-       player=${client.id}
-       room=${room.id}
-       angle=${data.angle}
-       power=${data.power}`);
-        this.server
-            .to(room.id)
-            .emit('playerAttack', {
-            id: client.id,
-            angle: data.angle,
-            power: data.power,
-        });
-        this.server
-            .to(room.id)
-            .emit('snapshot', nextSnapshot);
-        if (nextSnapshot.winner) {
-            room.status =
-                'finished';
-            this.server
-                .to(room.id)
-                .emit('gameFinished', {
-                winner: nextSnapshot.winner,
+        const context = this.getClientRoom(client.id);
+        if (!context) {
+            client.emit('sync', {
+                snapshot: null,
             });
             return;
         }
-        const nextPlayer = this.gameService.nextTurn(room.id);
-        nextSnapshot.currentTurn =
-            nextPlayer;
-        room.currentTurn =
-            nextPlayer;
-        this.server
-            .to(room.id)
-            .emit('turnChanged', {
-            playerId: nextPlayer,
+        client.emit('sync', {
+            snapshot: context.room.snapshot,
         });
     }
-    handleTurnEnd(client) {
-        const player = this.gameService.getPlayer(client.id);
-        if (!player ||
-            !player.roomId) {
+    async handleMove(data, client) {
+        await this.executeClientCommand(client, {
+            type: 'MOVE',
+            playerId: client.id,
+            x: data.x,
+            y: data.y,
+        });
+    }
+    async handleAttack(data, client) {
+        await this.executeClientCommand(client, {
+            type: 'ATTACK',
+            playerId: client.id,
+            angle: data.angle,
+            power: data.power,
+        });
+    }
+    async handleTurnEnd(client) {
+        await this.executeClientCommand(client, {
+            type: 'END_TURN',
+            playerId: client.id,
+        });
+    }
+    async executeClientCommand(client, command) {
+        const context = this.getClientRoom(client.id);
+        if (!context) {
+            client.emit('commandRejected', {
+                command: command.type,
+                reason: 'ROOM_NOT_FOUND',
+            });
             return;
         }
-        const nextPlayer = this.gameService.nextTurn(player.roomId);
-        const room = this.gameService.getRoom(player.roomId);
-        if (room) {
-            room.snapshot.currentTurn =
-                nextPlayer;
+        const { room, } = context;
+        try {
+            const previousTurn = room.snapshot.currentTurn;
+            const previousWinner = room.snapshot.winner;
+            const nextSnapshot = await this.commandExecutor
+                .execute(room, command);
+            this.broadcastSnapshot(room);
+            if (previousTurn !==
+                nextSnapshot.currentTurn) {
+                this.server
+                    .to(room.id)
+                    .emit('turnChanged', {
+                    playerId: nextSnapshot.currentTurn,
+                });
+            }
+            if (!previousWinner &&
+                nextSnapshot.winner) {
+                this.server
+                    .to(room.id)
+                    .emit('gameFinished', {
+                    winner: nextSnapshot.winner,
+                });
+            }
         }
-        console.log(`[TURN END]
-       current=${client.id}
-       next=${nextPlayer}`);
+        catch (error) {
+            console.error(`[COMMAND ERROR] room=${room.id} command=${command.type}`, error);
+            client.emit('commandRejected', {
+                command: command.type,
+                reason: 'PHYSICS_UNAVAILABLE',
+            });
+        }
+    }
+    getClientRoom(clientId) {
+        const player = this.gameService.getPlayer(clientId);
+        if (!player?.roomId) {
+            return null;
+        }
+        const room = this.gameService.getRoom(player.roomId);
+        if (!room) {
+            return null;
+        }
+        return {
+            room,
+        };
+    }
+    broadcastSnapshot(room) {
         this.server
-            .to(player.roomId)
-            .emit('turnChanged', {
-            playerId: nextPlayer,
-        });
+            .to(room.id)
+            .emit('snapshot', room.snapshot);
     }
 };
 exports.GameGateway = GameGateway;
@@ -216,6 +195,14 @@ __decorate([
     (0, websockets_1.WebSocketServer)(),
     __metadata("design:type", socket_io_1.Server)
 ], GameGateway.prototype, "server", void 0);
+__decorate([
+    (0, websockets_1.SubscribeMessage)('joinRoom'),
+    __param(0, (0, websockets_1.MessageBody)()),
+    __param(1, (0, websockets_1.ConnectedSocket)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
+    __metadata("design:returntype", void 0)
+], GameGateway.prototype, "handleJoinRoom", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('ready'),
     __param(0, (0, websockets_1.ConnectedSocket)()),
@@ -231,20 +218,12 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GameGateway.prototype, "handleSync", null);
 __decorate([
-    (0, websockets_1.SubscribeMessage)('joinRoom'),
-    __param(0, (0, websockets_1.MessageBody)()),
-    __param(1, (0, websockets_1.ConnectedSocket)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
-    __metadata("design:returntype", void 0)
-], GameGateway.prototype, "handleJoinRoom", null);
-__decorate([
     (0, websockets_1.SubscribeMessage)('move'),
     __param(0, (0, websockets_1.MessageBody)()),
     __param(1, (0, websockets_1.ConnectedSocket)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], GameGateway.prototype, "handleMove", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('attack'),
@@ -252,14 +231,14 @@ __decorate([
     __param(1, (0, websockets_1.ConnectedSocket)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [Object, socket_io_1.Socket]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], GameGateway.prototype, "handleAttack", null);
 __decorate([
     (0, websockets_1.SubscribeMessage)('turnEnd'),
     __param(0, (0, websockets_1.ConnectedSocket)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [socket_io_1.Socket]),
-    __metadata("design:returntype", void 0)
+    __metadata("design:returntype", Promise)
 ], GameGateway.prototype, "handleTurnEnd", null);
 exports.GameGateway = GameGateway = __decorate([
     (0, websockets_1.WebSocketGateway)({
@@ -267,7 +246,7 @@ exports.GameGateway = GameGateway = __decorate([
             origin: '*',
         },
     }),
-    __metadata("design:paramtypes", [physics_service_1.PhysicsService,
-        game_service_1.GameService])
+    __metadata("design:paramtypes", [game_service_1.GameService,
+        command_executor_service_1.CommandExecutorService])
 ], GameGateway);
 //# sourceMappingURL=game.gateway.js.map

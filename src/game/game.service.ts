@@ -1,241 +1,374 @@
-import { Injectable } from '@nestjs/common';
-import { Player } from './entities/player.entity';
-import { Room } from './entities/rooms.entity';
+import {
+  Injectable,
+} from '@nestjs/common';
+
+import {
+  Player,
+} from './entities/player.entity';
+
+import type {
+  Room,
+} from './entities/rooms.entity';
 
 @Injectable()
 export class GameService {
-  private players = new Map<string, Player>();
-  private rooms = new Map<string, Room>();
+  private readonly players =
+    new Map<string, Player>();
+
+  private readonly rooms =
+    new Map<string, Room>();
 
   createRoom(
-  roomName: string,
-  hostId: string,
-  maxPlayers: number,
-) {
-const room: Room = {
-  id: crypto.randomUUID(),
-  roomName,
-  hostId,
-  maxPlayers,
-  status: 'waiting',
-  players: [hostId],
-  readyPlayers: [],
-  currentTurn: hostId,
+    roomName: string,
+    hostId: string,
+    maxPlayers: number,
+  ): Room {
+    const host =
+      this.players.get(hostId);
 
-  turnIndex: 0,
-  snapshot: {
-    roomId: '',
-    currentTurn: hostId,
-    winner: null,
-    players: [],
-  },
+    const room: Room = {
+      id:
+        crypto.randomUUID(),
 
-};
+      roomName,
 
-  this.rooms.set(
-    room.id,
-    room,
-  );
+      hostId,
 
-  return room;
-}
+      maxPlayers,
 
-getRooms() {
-  return Array.from(
-    this.rooms.values(),
-  );
-}
+      status:
+        'waiting',
 
-getRoom(id: string) {
-  return this.rooms.get(id);
-}
+      players: [
+        hostId,
+      ],
 
-deleteRoom(id: string) {
-  return this.rooms.delete(id);
-}
+      readyPlayers: [],
 
-addPlayer(id: string) {
-  const existingPlayers =
-    Array.from(
-      this.players.values(),
+      snapshot: {
+        version:
+          0,
+
+        currentTurn:
+          hostId,
+
+        winner:
+          null,
+
+        turnAction: {
+          moved:
+            false,
+
+          attacked:
+            false,
+        },
+
+        players: host
+          ? [
+              this.toSnapshotPlayer(
+                host,
+              ),
+            ]
+          : [],
+      },
+    };
+
+    if (host) {
+      host.roomId =
+        room.id;
+    }
+
+    this.rooms.set(
+      room.id,
+      room,
     );
 
-  let x = 0;
-
-  while (true) {
-    x =
-      Math.floor(
-        Math.random() * 700,
-      ) + 50;
-
-    const tooClose =
-      existingPlayers.some(
-        (player) =>
-          Math.abs(player.x - x) < 100,
-      );
-
-    if (!tooClose) {
-      break;
-    }
+    return room;
   }
 
-this.players.set(id, {
-  id,
-  roomId: null,
-  nickname: id,
-  characterId: 'tank01',
-  hp: 100,
-  x,
-  y: 540,
-});
-}
+  getRooms(): Room[] {
+    return Array.from(
+      this.rooms.values(),
+    );
+  }
 
-  removePlayer(id: string) {
+  getRoom(
+    id: string,
+  ): Room | undefined {
+    return this.rooms.get(id);
+  }
+
+  deleteRoom(
+    id: string,
+  ): boolean {
+    return this.rooms.delete(id);
+  }
+
+  addPlayer(
+    id: string,
+  ): Player {
+    const existingPlayers =
+      Array.from(
+        this.players.values(),
+      );
+
+    let x = 0;
+    let attempts = 0;
+
+    do {
+      x =
+        Math.floor(
+          Math.random() *
+            700,
+        ) + 50;
+
+      attempts += 1;
+    } while (
+      existingPlayers.some(
+        player =>
+          Math.abs(
+            player.x - x,
+          ) < 100,
+      ) &&
+      attempts < 100
+    );
+
+    const player: Player = {
+      id,
+
+      roomId:
+        null,
+
+      nickname:
+        id,
+
+      characterId:
+        'tank01',
+
+      hp:
+        100,
+
+      x,
+
+      y:
+        540,
+    };
+
+    this.players.set(
+      id,
+      player,
+    );
+
+    return player;
+  }
+
+  removePlayer(
+    id: string,
+  ): void {
+    const player =
+      this.players.get(id);
+
+    if (player?.roomId) {
+      const room =
+        this.rooms.get(
+          player.roomId,
+        );
+
+      if (room) {
+        room.players =
+          room.players.filter(
+            playerId =>
+              playerId !== id,
+          );
+
+        room.readyPlayers =
+          room.readyPlayers.filter(
+            playerId =>
+              playerId !== id,
+          );
+
+        room.snapshot.players =
+          room.snapshot.players.filter(
+            snapshotPlayer =>
+              snapshotPlayer.id !==
+              id,
+          );
+
+        if (
+          room.players.length ===
+          0
+        ) {
+          this.rooms.delete(
+            room.id,
+          );
+        }
+      }
+    }
+
     this.players.delete(id);
   }
 
-  getPlayer(id: string) {
+  getPlayer(
+    id: string,
+  ): Player | undefined {
     return this.players.get(id);
   }
 
-  getPlayers() {
-    return Array.from(this.players.values());
+  getPlayers(): Player[] {
+    return Array.from(
+      this.players.values(),
+    );
   }
 
   readyPlayer(
-  playerId: string,
-) {
-  const player =
-    this.players.get(playerId);
+    playerId: string,
+  ): Room | null {
+    const player =
+      this.players.get(
+        playerId,
+      );
 
-  if (
-    !player ||
-    !player.roomId
-  ) {
-    return null;
+    if (
+      !player?.roomId
+    ) {
+      return null;
+    }
+
+    const room =
+      this.rooms.get(
+        player.roomId,
+      );
+
+    if (!room) {
+      return null;
+    }
+
+    if (
+      !room.readyPlayers.includes(
+        playerId,
+      )
+    ) {
+      room.readyPlayers.push(
+        playerId,
+      );
+    }
+
+    return room;
   }
 
-  const room =
-    this.rooms.get(
-      player.roomId,
-    );
+  isReadyToStart(
+    roomId: string,
+  ): boolean {
+    const room =
+      this.rooms.get(roomId);
 
-  if (!room) {
-    return null;
-  }
+    if (!room) {
+      return false;
+    }
 
-  if (
-    !room.readyPlayers.includes(
-      playerId,
-    )
-  ) {
-    room.readyPlayers.push(
-      playerId,
-    );
-  }
-
-  return room;
-}
-
-isReadyToStart(
-  roomId: string,
-) {
-  const room =
-    this.rooms.get(roomId);
-
-  if (!room) {
-    return false;
-  }
-
-  return (
-    room.players.length >= 2 &&
-    room.readyPlayers.length ===
-      room.players.length
-  );
-}
-
-nextTurn(
-  roomId: string,
-): string {
-  const room =
-    this.rooms.get(roomId);
-  if (!room) {
-    throw new Error(
-      `Room not found: ${roomId}`,
+    return (
+      room.players.length >= 2 &&
+      room.readyPlayers.length ===
+        room.players.length
     );
   }
-  room.turnIndex++;
-  if (
-    room.turnIndex >=
-    room.players.length
-  ) {
-    room.turnIndex = 0;
-  }
 
-  room.currentTurn =
-    room.players[
-      room.turnIndex
-    ];
-  return room.currentTurn;
-}
+  joinRoom(
+    playerId: string,
+    roomId: string,
+  ): Player | null {
+    const player =
+      this.players.get(
+        playerId,
+      );
 
-isMyTurn(
-  roomId: string,
-  playerId: string,
-) {
-  const room =
-    this.rooms.get(roomId);
+    const room =
+      this.rooms.get(
+        roomId,
+      );
 
-  if (!room) {
-    return false;
-  }
+    if (
+      !player ||
+      !room
+    ) {
+      return null;
+    }
 
-  return (
-    room.currentTurn ===
-    playerId
-  );
-}
+    if (
+      room.status !==
+      'waiting'
+    ) {
+      return null;
+    }
 
-joinRoom(
-  playerId: string,
-  roomId: string,
-) {
-  const player =
-    this.players.get(playerId);
+    if (
+      room.players.length >=
+      room.maxPlayers
+    ) {
+      return null;
+    }
 
-  const room =
-    this.rooms.get(roomId);
+    player.roomId =
+      roomId;
 
-  if (!player) {
-    return null;
-  }
+    if (
+      !room.players.includes(
+        playerId,
+      )
+    ) {
+      room.players.push(
+        playerId,
+      );
+    }
 
-  if (!room) {
-    return null;
-  }
+    const exists =
+      room.snapshot.players.some(
+        snapshotPlayer =>
+          snapshotPlayer.id ===
+          playerId,
+      );
 
-  player.roomId = roomId;
-
-  if (
-    !room.players.includes(
-      playerId,
-    )
-  ) {
-    room.players.push(
-      playerId,
-    );
-  }
-  return player;
-}
-
-  movePlayer(id: string, x: number, y: number) {
-    const player = this.players.get(id);
-
-    if (!player) return null;
-
-    player.x = x;
-    player.y = y;
+    if (!exists) {
+      room.snapshot.players.push(
+        this.toSnapshotPlayer(
+          player,
+        ),
+      );
+    }
 
     return player;
+  }
+
+  private toSnapshotPlayer(
+    player: Player,
+  ) {
+    return {
+      id:
+        player.id,
+
+      x:
+        player.x,
+
+      y:
+        player.y,
+
+      hp:
+        player.hp,
+
+      maxHp:
+        100,
+
+      fuel:
+        100,
+
+      maxFuel:
+        100,
+
+      alive:
+        true,
+
+      facing:
+        1 as const,
+    };
   }
 }

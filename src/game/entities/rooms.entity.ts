@@ -1,19 +1,26 @@
-import { GameSnapshot } from
-'../../physics/types/game-snapshot';
+import type {
+  GameSnapshot,
+} from '../common/types/snapshots';
 
-export class Room {
+export type RoomStatus =
+  | 'waiting'
+  | 'playing'
+  | 'finished';
+
+export interface Room {
   id: string;
+
   roomName: string;
+
   hostId: string;
+
   maxPlayers: number;
-  status:
-    | 'waiting'
-    | 'playing'
-    | 'finished';
+
+  status: RoomStatus;
 
   players: string[];
+
   readyPlayers: string[];
-  currentTurn: string;
-  turnIndex: number;
+
   snapshot: GameSnapshot;
 }

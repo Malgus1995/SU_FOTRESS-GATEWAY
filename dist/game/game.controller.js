@@ -16,8 +16,10 @@ exports.GameController = void 0;
 const common_1 = require("@nestjs/common");
 const game_service_1 = require("./game.service");
 const player_dto_1 = require("./dto/player.dto");
-const player_dto_2 = require("./dto/player.dto");
 const room_dto_1 = require("./dto/room.dto");
+class ReadyPlayerDto {
+    playerId;
+}
 let GameController = class GameController {
     gameService;
     constructor(gameService) {
@@ -30,40 +32,84 @@ let GameController = class GameController {
         };
     }
     getPlayers() {
-        return this.gameService.getPlayers();
+        return this.gameService
+            .getPlayers();
     }
     getPlayer(id) {
-        return this.gameService.getPlayer(id);
+        const player = this.gameService.getPlayer(id);
+        if (!player) {
+            throw new common_1.NotFoundException(`Player not found: ${id}`);
+        }
+        return player;
     }
     createPlayer(body) {
-        this.gameService.addPlayer(body.id);
+        const player = this.gameService.addPlayer(body.id);
         return {
             message: 'player created',
-            id: body.id,
-        };
-    }
-    joinRoom(body) {
-        const player = this.gameService.joinRoom(body.id, body.roomId);
-        return {
-            message: 'room joined',
             player,
         };
-    }
-    getRoom(id) {
-        return this.gameService.getRoom(id);
     }
     getRooms() {
-        return this.gameService.getRooms();
+        return this.gameService
+            .getRooms();
+    }
+    getRoom(id) {
+        const room = this.gameService.getRoom(id);
+        if (!room) {
+            throw new common_1.NotFoundException(`Room not found: ${id}`);
+        }
+        return room;
     }
     createRoom(body) {
-        console.log(body);
-        return this.gameService.createRoom(body.roomName, body.hostId, body.maxPlayers);
+        return this.gameService
+            .createRoom(body.roomName, body.hostId, body.maxPlayers);
     }
-    movePlayer(body) {
-        const player = this.gameService.movePlayer(body.id, body.x, body.y);
+    joinRoom(roomId, body) {
+        const player = this.gameService.joinRoom(body.id, roomId);
+        if (!player) {
+            throw new common_1.NotFoundException('Room join failed');
+        }
         return {
-            message: 'player moved',
+            message: 'room joined',
+            roomId,
             player,
+        };
+    }
+    readyPlayer(roomId, body) {
+        const player = this.gameService.getPlayer(body.playerId);
+        if (!player ||
+            player.roomId !== roomId) {
+            throw new common_1.NotFoundException('Player is not in this room');
+        }
+        const room = this.gameService.readyPlayer(body.playerId);
+        if (!room) {
+            throw new common_1.NotFoundException('Ready request failed');
+        }
+        return {
+            message: 'player ready',
+            roomId: room.id,
+            playerId: body.playerId,
+            readyPlayers: room.readyPlayers,
+            readyCount: room.readyPlayers.length,
+            playerCount: room.players.length,
+            canStart: this.gameService
+                .isReadyToStart(room.id),
+        };
+    }
+    getReadyStatus(roomId) {
+        const room = this.gameService.getRoom(roomId);
+        if (!room) {
+            throw new common_1.NotFoundException(`Room not found: ${roomId}`);
+        }
+        return {
+            roomId: room.id,
+            status: room.status,
+            players: room.players,
+            readyPlayers: room.readyPlayers,
+            readyCount: room.readyPlayers.length,
+            playerCount: room.players.length,
+            canStart: this.gameService
+                .isReadyToStart(room.id),
         };
     }
 };
@@ -95,12 +141,11 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "createPlayer", null);
 __decorate([
-    (0, common_1.Post)('join-room'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Get)('rooms'),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [room_dto_1.JoinRoomDto]),
+    __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
-], GameController.prototype, "joinRoom", null);
+], GameController.prototype, "getRooms", null);
 __decorate([
     (0, common_1.Get)('rooms/:id'),
     __param(0, (0, common_1.Param)('id')),
@@ -109,12 +154,6 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "getRoom", null);
 __decorate([
-    (0, common_1.Get)('rooms'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], GameController.prototype, "getRooms", null);
-__decorate([
     (0, common_1.Post)('rooms'),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -122,12 +161,28 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GameController.prototype, "createRoom", null);
 __decorate([
-    (0, common_1.Post)('move'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.Post)('rooms/:roomId/join'),
+    __param(0, (0, common_1.Param)('roomId')),
+    __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [player_dto_2.MovePlayerDto]),
+    __metadata("design:paramtypes", [String, room_dto_1.JoinRoomDto]),
     __metadata("design:returntype", void 0)
-], GameController.prototype, "movePlayer", null);
+], GameController.prototype, "joinRoom", null);
+__decorate([
+    (0, common_1.Post)('rooms/:roomId/ready'),
+    __param(0, (0, common_1.Param)('roomId')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, ReadyPlayerDto]),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "readyPlayer", null);
+__decorate([
+    (0, common_1.Get)('rooms/:roomId/ready-status'),
+    __param(0, (0, common_1.Param)('roomId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", void 0)
+], GameController.prototype, "getReadyStatus", null);
 exports.GameController = GameController = __decorate([
     (0, common_1.Controller)('game'),
     __metadata("design:paramtypes", [game_service_1.GameService])

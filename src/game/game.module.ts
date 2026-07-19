@@ -1,15 +1,39 @@
-import { Module } from '@nestjs/common';
+import {
+  Module,
+} from '@nestjs/common';
 
-import { GameGateway } from './game.gateway';
-import { GameController } from './game.controller';
-import { GameService } from './game.service';
-import { PhysicsModule } from 'src/physics/physics.module';
+import {
+  GameController,
+} from './game.controller';
+
+import {
+  GameGateway,
+} from './game.gateway';
+
+import {
+  GameService,
+} from './game.service';
+
+import {
+  CommandModule,
+} from './command/command.module';
 
 @Module({
-  controllers: [GameController],
-  providers: [GameGateway, GameService],
-     imports: [
-    PhysicsModule,
+  imports: [
+    CommandModule,
+  ],
+
+  controllers: [
+    GameController,
+  ],
+
+  providers: [
+    GameGateway,
+    GameService,
+  ],
+
+  exports: [
+    GameService,
   ],
 })
 export class GameModule {}
