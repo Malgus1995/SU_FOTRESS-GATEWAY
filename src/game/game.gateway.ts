@@ -214,6 +214,18 @@ export class GameGateway
         false,
     };
 
+  for (const player of room.snapshot.players
+  ) {
+
+    player.maxHp ??=
+    100;
+    player.hp =player.maxHp;
+    player.maxFuel ??=100;
+    player.fuel =player.maxFuel;
+
+    player.alive =true;
+  }
+
     room.snapshot.version +=
       1;
 
@@ -265,36 +277,31 @@ export class GameGateway
     );
   }
 
-  @SubscribeMessage(
-    'move',
-  )
-  async handleMove(
-    @MessageBody()
-    data: {
-      x: number;
-      y: number;
+@SubscribeMessage('move')
+async handleMove(
+  @MessageBody()
+  data: {
+    direction: -1 | 1;
+  },
+  @ConnectedSocket()
+  client: Socket,
+): Promise<void> {
+  console.log('[GATEWAY MOVE DATA]', {
+    clientId: client.id,
+    data,
+    direction: data?.direction,
+    type: typeof data?.direction,
+  });
+
+  await this.executeClientCommand(
+    client,
+    {
+      type: 'MOVE',
+      playerId: client.id,
+      direction: data.direction,
     },
-
-    @ConnectedSocket()
-    client: Socket,
-  ): Promise<void> {
-    await this.executeClientCommand(
-      client,
-      {
-        type:
-          'MOVE',
-
-        playerId:
-          client.id,
-
-        x:
-          data.x,
-
-        y:
-          data.y,
-      },
-    );
-  }
+  );
+}
 
   @SubscribeMessage(
     'attack',

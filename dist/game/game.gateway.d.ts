@@ -15,8 +15,7 @@ export declare class GameGateway implements OnGatewayConnection, OnGatewayDiscon
     handleReady(client: Socket): void;
     handleSync(client: Socket): void;
     handleMove(data: {
-        x: number;
-        y: number;
+        direction: -1 | 1;
     }, client: Socket): Promise<void>;
     handleAttack(data: {
         angle: number;

@@ -34,11 +34,8 @@ export interface GameSnapshot {
 
 export type MoveCommand = {
   type: 'MOVE';
-
   playerId: string;
-
-  x: number;
-  y: number;
+  direction: 1 | -1;
 };
 
 export type AttackCommand = {

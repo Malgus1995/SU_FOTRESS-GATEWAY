@@ -87,6 +87,14 @@ let GameGateway = class GameGateway {
             moved: false,
             attacked: false,
         };
+        for (const player of room.snapshot.players) {
+            player.maxHp ??=
+                100;
+            player.hp = player.maxHp;
+            player.maxFuel ??= 100;
+            player.fuel = player.maxFuel;
+            player.alive = true;
+        }
         room.snapshot.version +=
             1;
         this.server
@@ -109,11 +117,16 @@ let GameGateway = class GameGateway {
         });
     }
     async handleMove(data, client) {
+        console.log('[GATEWAY MOVE DATA]', {
+            clientId: client.id,
+            data,
+            direction: data?.direction,
+            type: typeof data?.direction,
+        });
         await this.executeClientCommand(client, {
             type: 'MOVE',
             playerId: client.id,
-            x: data.x,
-            y: data.y,
+            direction: data.direction,
         });
     }
     async handleAttack(data, client) {
